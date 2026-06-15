@@ -14,9 +14,11 @@ export * from './emails/unassigned-items-notification';
 // Email sending functions
 export * from './lib/all-policy-notification';
 export * from './lib/check-unsubscribe';
+export * from './lib/email-config';
 export * from './lib/invite-member';
 export * from './lib/magic-link';
 export * from './lib/policy-notification';
+export * from './lib/mailer';
 export * from './lib/resend';
 export * from './lib/training-completed';
 export * from './lib/unassigned-items-notification';

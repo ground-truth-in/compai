@@ -1,7 +1,11 @@
 import { logger, queue, schemaTask } from '@trigger.dev/sdk';
 import { z } from 'zod';
-import { resend } from '../../email/resend';
-import { generateUnsubscribeToken } from '@trycompai/email';
+import {
+  generateUnsubscribeToken,
+  isEmailProviderConfigured,
+  resolveDefaultFromAddress,
+  sendBatchHtmlEmails,
+} from '@trycompai/email';
 
 const RESEND_BATCH_LIMIT = 100;
 
@@ -28,19 +32,19 @@ export const sendBatchEmailTask = schemaTask({
     emails: z.array(batchEmailItemSchema).min(1),
   }),
   run: async (params) => {
-    if (!resend) {
-      logger.error('Resend not initialized - missing RESEND_API_KEY');
-      throw new Error('Resend not initialized - missing API key');
+    if (!isEmailProviderConfigured()) {
+      logger.error('Email provider not initialized', {
+        provider: process.env.EMAIL_PROVIDER ?? 'resend',
+      });
+      throw new Error('Email provider not initialized - missing API key');
     }
 
-    const fromDefault =
-      process.env.RESEND_FROM_SYSTEM ?? process.env.RESEND_FROM_DEFAULT;
+    const fromDefault = resolveDefaultFromAddress();
 
     if (!fromDefault) {
       throw new Error('Missing FROM address in environment variables');
     }
 
-    const toTest = process.env.RESEND_TO_TEST;
     const apiBaseUrl =
       process.env.NEXT_PUBLIC_API_URL || 'https://api.trycomp.ai';
 
@@ -56,7 +60,7 @@ export const sendBatchEmailTask = schemaTask({
 
         return {
           from: email.from ?? fromDefault,
-          to: toTest ?? email.to,
+          to: email.to,
           cc: email.cc,
           subject: email.subject,
           html: email.html,
@@ -67,39 +71,25 @@ export const sendBatchEmailTask = schemaTask({
         };
       });
 
-      const { data, error } = await resend.batch.send(payload, {
-        batchValidation: 'permissive',
-      });
+      try {
+        const { sent, failed } = await sendBatchHtmlEmails(payload);
+        totalSent += sent;
+        totalFailed += failed;
 
-      if (error) {
-        logger.error('Resend batch API error', {
-          error,
+        logger.info('Batch chunk sent', {
           chunkIndex: i,
           chunkSize: chunk.length,
+          sent,
+          failed,
+        });
+      } catch (error) {
+        logger.error('Batch email chunk failed', {
+          chunkIndex: i,
+          chunkSize: chunk.length,
+          error: error instanceof Error ? error.message : String(error),
         });
         totalFailed += chunk.length;
-        continue;
       }
-
-      const sent = data?.data?.length ?? 0;
-      totalSent += sent;
-
-      if ('errors' in data && Array.isArray(data.errors)) {
-        for (const err of data.errors) {
-          logger.warn('Batch email failed for recipient', {
-            index: err.index,
-            message: err.message,
-            to: chunk[err.index]?.to,
-          });
-          totalFailed += 1;
-        }
-      }
-
-      logger.info('Batch chunk sent', {
-        chunkIndex: i,
-        chunkSize: chunk.length,
-        sent,
-      });
     }
 
     logger.info('Batch email task complete', { totalSent, totalFailed });
