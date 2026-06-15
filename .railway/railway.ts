@@ -42,14 +42,14 @@ export default defineRailway(() => {
   const s3 = compAiS3Env(storage);
 
   const migrator = service('Migrator', {
-    source: github('trycompai/comp'),
+    source: github('ground-truth-in/compai'),
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
     },
   });
 
   const api = service('API', {
-    source: github('trycompai/comp'),
+    source: github('ground-truth-in/compai'),
     healthcheck: '/v1/health',
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -72,7 +72,7 @@ export default defineRailway(() => {
   });
 
   const app = service('App', {
-    source: github('trycompai/comp'),
+    source: github('ground-truth-in/compai'),
     healthcheck: '/api/health',
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -95,7 +95,7 @@ export default defineRailway(() => {
   });
 
   const portal = service('Portal', {
-    source: github('trycompai/comp'),
+    source: github('ground-truth-in/compai'),
     healthcheck: '/',
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
