@@ -17,6 +17,10 @@ COPY packages/integrations/package.json ./packages/integrations/
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY packages/analytics/package.json ./packages/analytics/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/billing/package.json ./packages/billing/
+COPY packages/company/package.json ./packages/company/
+COPY packages/db/package.json ./packages/db/
 
 # Copy app package.json files
 COPY apps/app/package.json ./apps/app/
@@ -50,9 +54,9 @@ RUN echo "Running migrations against @trycompai/db combined schema"
 CMD ["bunx", "prisma", "migrate", "deploy", "--schema=node_modules/@trycompai/db/dist/schema.prisma"]
 
 # =============================================================================
-# STAGE 3: App Builder
+# STAGE 3: App Builder (Node — Next.js 16 Turbopack needs worker_threads Bun lacks)
 # =============================================================================
-FROM deps AS app-builder
+FROM node:22-bookworm-slim AS app-builder
 
 WORKDIR /app
 
@@ -63,13 +67,11 @@ COPY apps/app ./apps/app
 # Bring in node_modules for build and prisma prebuild
 COPY --from=deps /app/node_modules ./node_modules
 
-# Pre-combine schemas and generate the Prisma client into
-# node_modules/@prisma/client. The deps stage ran `bun install` with
-# `--ignore-scripts` so packages/db's postinstall was skipped; we run
-# it explicitly here so `next build` can resolve the generated runtime
-# + types when it imports @prisma/client.
-RUN cd packages/db && node scripts/combine-schemas.js \
-                   && node scripts/generate-prisma-client-js.js
+# Build workspace packages and Prisma client for @trycompai/db consumers
+RUN cd packages/db && npm run build \
+  && cd ../auth && npm run build \
+  && cd ../company && npm run build \
+  && cd ../billing && npm run build
 
 # Ensure Next build has required public env at build-time
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
@@ -86,10 +88,11 @@ ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL \
     NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production \
     NEXT_OUTPUT_STANDALONE=true \
-    NODE_OPTIONS=--max_old_space_size=6144
+    NODE_OPTIONS=--max_old_space_size=6144 \
+    PATH="/app/node_modules/.bin:${PATH}"
 
 # Build the app
-RUN cd apps/app && SKIP_ENV_VALIDATION=true bun run build:docker
+RUN cd apps/app && SKIP_ENV_VALIDATION=true npm run build:docker
 
 # =============================================================================
 # STAGE 4: App Production
@@ -107,9 +110,9 @@ EXPOSE 3000
 CMD ["node", "apps/app/server.js"]
 
 # =============================================================================
-# STAGE 5: Portal Builder
+# STAGE 5: Portal Builder (Node — Next.js 16 Turbopack needs worker_threads Bun lacks)
 # =============================================================================
-FROM deps AS portal-builder
+FROM node:22-bookworm-slim AS portal-builder
 
 WORKDIR /app
 
@@ -121,18 +124,18 @@ COPY apps/portal ./apps/portal
 COPY --from=deps /app/node_modules ./node_modules
 
 # Pre-combine schemas for portal build
-RUN cd packages/db && node scripts/combine-schemas.js
-RUN cp packages/db/dist/schema.prisma apps/portal/prisma/schema.prisma
+RUN cd packages/db && npm run build \
+  && cd ../auth && npm run build \
+  && cd ../company && npm run build
 
-# Ensure Next build has required public env at build-time
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
 ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL \
     NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production \
     NEXT_OUTPUT_STANDALONE=true \
-    NODE_OPTIONS=--max_old_space_size=6144
+    NODE_OPTIONS=--max_old_space_size=6144 \
+    PATH="/app/node_modules/.bin:${PATH}"
 
-# Build the portal
-RUN cd apps/portal && SKIP_ENV_VALIDATION=true bun run build:docker
+RUN cd apps/portal && SKIP_ENV_VALIDATION=true npm run build:docker
 
 # =============================================================================
 # STAGE 6: Portal Production

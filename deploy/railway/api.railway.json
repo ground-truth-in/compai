@@ -3,7 +3,21 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "apps/api/Dockerfile.multistage",
-    "watchPatterns": ["apps/api/**", "packages/auth/**", "packages/db/**", "packages/billing/**"]
+    "watchPatterns": [
+      "package.json",
+      "bun.lock",
+      ".dockerignore",
+      "apps/api/**",
+      "apps/api/Dockerfile.multistage",
+      "packages/auth/**",
+      "packages/db/**",
+      "packages/billing/**",
+      "packages/email/**",
+      "packages/company/**",
+      "packages/integration-platform/**",
+      "packages/utils/**",
+      "packages/tsconfig/**"
+    ]
   },
   "deploy": {
     "healthcheckPath": "/v1/health",

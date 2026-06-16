@@ -74,6 +74,7 @@ const config: NextConfig = {
     optimizePackageImports: ['@trycompai/db', '@trycompai/ui'],
     // Reduce build peak memory
     webpackMemoryOptimizations: true,
+    ...(process.env.NEXT_BUILD_SINGLE_CPU === '1' ? { cpus: 1 } : {}),
   },
   outputFileTracingRoot: workspaceRoot,
 
@@ -125,7 +126,11 @@ const config: NextConfig = {
   },
 };
 
-export default withSentryConfig(withBotId(config), {
+const baseConfig = withBotId(config);
+
+export default process.env.SKIP_SENTRY_BUILD === 'true'
+  ? baseConfig
+  : withSentryConfig(baseConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 

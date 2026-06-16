@@ -72,23 +72,25 @@ const config = {
     : {}),
 };
 
-export default withSentryConfig(config, {
-  org: 'comp-ai',
-  project: 'comp',
+export default process.env.SKIP_SENTRY_BUILD === 'true'
+  ? config
+  : withSentryConfig(config, {
+      org: 'comp-ai',
+      project: 'comp',
 
-  // Only print logs for uploading source maps in CI
-  silent: !process.env.CI,
+      // Only print logs for uploading source maps in CI
+      silent: !process.env.CI,
 
-  // Upload a larger set of source maps for prettier stack traces
-  widenClientFileUpload: true,
+      // Upload a larger set of source maps for prettier stack traces
+      widenClientFileUpload: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  tunnelRoute: '/monitoring',
+      // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+      tunnelRoute: '/monitoring',
 
-  webpack: {
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    treeshake: {
-      removeDebugLogging: true,
-    },
-  },
-});
+      webpack: {
+        // Automatically tree-shake Sentry logger statements to reduce bundle size
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
+    });

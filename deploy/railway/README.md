@@ -90,23 +90,52 @@ Set on the **API** service (where mail is sent):
 
 ### 1. Prerequisites
 
-- [Railway CLI](https://docs.railway.com/develop/cli) installed and logged in
+- [Railway CLI](https://docs.railway.com/develop/cli) installed and logged in (`railway --version` ≥ 5.x)
+- [Railway TypeScript SDK](https://github.com/railwayapp/railway-ts-sdk) installed in this repo (required for `railway config plan` / `apply`)
 - GitHub repo connected to Railway
-- External accounts: [Resend](https://resend.com), [Trigger.dev](https://cloud.trigger.dev)
+- External accounts: [Resend](https://resend.com) or [Brevo](https://www.brevo.com), [Trigger.dev](https://cloud.trigger.dev)
 
 Railway **Storage Buckets** (S3-compatible) are provisioned automatically via `.railway/railway.ts` — no separate AWS account required.
+
+Install the SDK from the repo root:
+
+```bash
+bun install   # installs the `railway` devDependency (provides `railway/iac` + `railway-iac-ts`)
+```
+
+If you see *"Could not find Railway configuration support"* or *"Cannot find module 'railway/iac'"*, run `bun install` here — not in a subfolder.
+
+> **Use a new Railway project** for Comp AI. `railway link` to an empty project (or create one in the dashboard). Do **not** `config apply` against an existing project with other services — the plan will try to delete everything not defined in `.railway/railway.ts`.
 
 ### 2. Provision infrastructure
 
 ```bash
-railway link          # link to a new or existing project
+railway login
+railway link          # link to a **new** Comp AI project (not an existing app)
 railway config plan   # preview .railway/railway.ts changes
 railway config apply  # create Postgres + services
 ```
 
-### 3. Configure each service
+### 3. Configure each service (required for correct Dockerfiles)
 
-In the Railway dashboard, set **Config file path** per service (absolute from repo root):
+Without a per-service config, Railway builds the **repo-root `Dockerfile`** (last stage = Portal) for every service — API will fail its `/v1/health` check.
+
+**Option A — CLI (recommended):**
+
+```bash
+chmod +x deploy/railway/configure-build.sh deploy/railway/up-service.sh
+./deploy/railway/configure-build.sh   # sets RAILWAY_DOCKERFILE_PATH per service
+./deploy/railway/up-service.sh Migrator
+./deploy/railway/up-service.sh API
+./deploy/railway/up-service.sh App
+./deploy/railway/up-service.sh Portal
+```
+
+`configure-build.sh` sets `RAILWAY_DOCKERFILE_PATH` (Railway’s supported override). `up-service.sh` also copies the matching `*.railway.json` for healthcheck/watch settings.
+
+**Option B — Dashboard (required for GitHub autodeploys):**
+
+Set **Config file path** per service (absolute from repo root):
 
 | Service | Config file |
 |---------|-------------|
@@ -114,6 +143,8 @@ In the Railway dashboard, set **Config file path** per service (absolute from re
 | App | `/deploy/railway/app.railway.json` |
 | Portal | `/deploy/railway/portal.railway.json` |
 | Migrator | `/deploy/railway/migrator.railway.json` |
+
+Leave **Root Directory** empty for all services.
 
 ### 4. Generate public domains
 
@@ -129,6 +160,7 @@ Wire cross-service URLs (use Railway reference variables in the Variables tab):
 NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_BETTER_AUTH_URL=https://${{App.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_PORTAL_URL=https://${{Portal.RAILWAY_PUBLIC_DOMAIN}}
+NEXT_PUBLIC_AUTH_VIA_APP_PROXY=1
 BETTER_AUTH_URL=https://${{App.RAILWAY_PUBLIC_DOMAIN}}
 
 # Portal
@@ -144,7 +176,22 @@ AUTH_TRUSTED_ORIGINS=https://${{App.RAILWAY_PUBLIC_DOMAIN}},https://${{Portal.RA
 
 ### 5. Set secrets
 
-Generate with `openssl rand -base64 32`:
+**Automated (recommended):**
+
+```bash
+# 1. Add vendor keys (gitignored — never commit)
+cp .env.secrets.example .env.secrets
+# edit .env.secrets: BREVO_API_KEY, TRIGGER_SECRET_KEY, RESEND_FROM_*
+
+# 2. From repo root, after config apply
+./deploy/railway/set-variables.sh          # loads .env.secrets automatically
+./deploy/railway/set-variables.sh --yes    # non-interactive
+./deploy/railway/set-variables.sh --dry-run
+```
+
+The script loads `.env.secrets`, generates domains (API/App/Portal), wires `${{...}}` URL references, creates random auth tokens, and skips vendor vars already set on Railway.
+
+**Manual** — generate with `openssl rand -base64 32`:
 
 | Variable | Services | Purpose |
 |----------|----------|---------|
@@ -159,9 +206,44 @@ Generate with `openssl rand -base64 32`:
 | `BREVO_API_KEY` | API | Email (when `EMAIL_PROVIDER=brevo`) |
 | `EMAIL_PROVIDER` | API | `resend` (default) or `brevo` |
 | `TRIGGER_SECRET_KEY` | API, App | Background jobs |
+| `UPSTASH_REDIS_REST_URL` | App, API (recommended) | Onboarding setup sessions, rate limits, API CORS cache |
+| `UPSTASH_REDIS_REST_TOKEN` | App, API (recommended) | Pair with URL — Upstash Cloud **or** Railway [Serverless Redis](https://railway.com/deploy/hBFwO4) |
 | `DATABASE_URL` | All | Reference `${{Postgres.DATABASE_URL}}` |
 
 Full variable reference: `packages/docs/self-hosting/env-reference.mdx`
+
+### 5b. Redis (Serverless Redis template on Railway)
+
+Comp AI uses `@upstash/redis` (HTTP REST). Plain Railway Redis (`REDIS_URL`) does **not** work without code changes. Use the [Serverless Redis template](https://railway.com/deploy/hBFwO4) — Redis + an Upstash-compatible HTTP wrapper:
+
+```bash
+# From repo root, linked to your Comp AI project
+railway deploy -t hBFwO4
+
+# After deploy, confirm the http service is online and note SR_TOKEN:
+railway variable list --service http --kv | rg 'SR_TOKEN|RAILWAY_PUBLIC_DOMAIN'
+
+# Smoke test (replace token):
+curl -sS -X POST "https://<http-domain>/pipeline" \
+  -H "Authorization: Bearer <SR_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '[["PING"]]'
+
+# Wire App + API (reference vars — survive http service redeploys):
+railway variable set \
+  "UPSTASH_REDIS_REST_URL=https://\${{http.RAILWAY_PUBLIC_DOMAIN}}" \
+  "UPSTASH_REDIS_REST_TOKEN=\${{http.SR_TOKEN}}" \
+  --service App
+
+railway variable set \
+  "UPSTASH_REDIS_REST_URL=https://\${{http.RAILWAY_PUBLIC_DOMAIN}}" \
+  "UPSTASH_REDIS_REST_TOKEN=\${{http.SR_TOKEN}}" \
+  --service API
+
+./deploy/railway/up-service.sh App
+```
+
+Alternatively use Upstash Cloud and set `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` from the Upstash console.
 
 ### 6. Run migrations
 
@@ -169,13 +251,39 @@ Deploy the **Migrator** service once (restart policy: `NEVER`). Check deploy log
 
 ### 7. Deploy Trigger.dev tasks
 
-Trigger.dev runs outside Railway:
+Auth emails (magic link, OTP) and most background jobs enqueue **Trigger.dev** tasks from the **API** (`apps/api/src/trigger/`). Railway only triggers them — a worker must be deployed on Trigger.dev.
 
-```bash
-cd apps/app
-bunx trigger.dev@latest login
-bunx trigger.dev@latest deploy
-```
+The repo defaults to Comp AI's internal project ref (`proj_zhioyrusqertqgafqgpj`). **Your account cannot deploy to it.** Create your own project:
+
+1. [cloud.trigger.dev](https://cloud.trigger.dev) → **New project** (e.g. "Comp AI API")
+2. Copy the **project ref** (`proj_…`) and **Production** secret key (`tr_prod_…`)
+3. Set on Railway **API** (and **App** if it triggers tasks):
+
+   ```bash
+   railway variable set TRIGGER_SECRET_KEY=tr_prod_... --service API
+   ```
+
+4. In Trigger.dev → your project → **Environment variables** (Production), add:
+
+   ```
+   EMAIL_PROVIDER=brevo
+   BREVO_API_KEY=...
+   RESEND_FROM_SYSTEM=support@yourdomain.com
+   RESEND_FROM_DEFAULT=support@yourdomain.com
+   DATABASE_URL=...          # same Postgres as Railway
+   PRISMA_ALLOW_INSECURE_TLS=1
+   ```
+
+5. Deploy the API task bundle (not `apps/app` — that is a separate Trigger project for app-only jobs):
+
+   ```bash
+   cd apps/api
+   bunx trigger.dev@latest login
+   export TRIGGER_PROJECT_REF=proj_YOUR_REF   # or pass -p proj_YOUR_REF
+   bunx trigger.dev@latest deploy              # defaults to prod — matches tr_prod_ key
+   ```
+
+Until this step completes, magic-link requests return 200 but emails stay **QUEUED** on Trigger.dev.
 
 ## Publishing as a Railway template
 
@@ -195,8 +303,12 @@ Templates are no longer submitted via the [railwayapp/templates](https://github.
 ## Build notes
 
 - **Memory**: Next.js Docker builds use `NODE_OPTIONS=--max_old_space_size=6144` (6 GB). Use a Railway plan with sufficient build resources.
-- **Watch patterns**: Each `*.railway.json` limits rebuilds to relevant paths.
+- **Next.js build runtime**: App/Portal builder stages use **Node** (not Bun) with `next build --webpack`. Next.js 16 defaults to Turbopack, which requires `worker_threads` options Bun does not implement in Docker.
+- **Watch patterns**: Each `*.railway.json` limits deploy triggers to relevant paths. Root `package.json` and `bun.lock` are listed so lockfile changes redeploy the right services.
+- **Root directory**: Leave **Root Directory** empty (repo root) for every service — not `apps/app` or `apps/portal`.
+- **`bun.lock` must not be in `.gitignore`**: `railway up` respects `.gitignore` and will omit ignored files from the upload. If Docker fails with `"/bun.lock": not found`, remove `bun.lock` from `.gitignore` (do not rely on `railway up --no-gitignore` long-term).
 - **OAuth**: Register redirect URIs against the **API** domain: `https://<api-domain>/api/auth/callback/google` (and Microsoft/GitHub equivalents).
+- **Auth cookies on Railway**: Default `*.up.railway.app` domains cannot share cookies. Set `NEXT_PUBLIC_AUTH_VIA_APP_PROXY=1` on App (done by `set-variables.sh`) so `/api/auth/*` is proxied through the app and magic-link emails use `BETTER_AUTH_URL`. For production, prefer custom domains (`app.example.com` + `api.example.com`) with `AUTH_COOKIE_DOMAIN=.example.com` on the API.
 
 ## Files in this directory
 

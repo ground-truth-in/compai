@@ -15,6 +15,14 @@ export * from './emails/unassigned-items-notification';
 export * from './lib/all-policy-notification';
 export * from './lib/check-unsubscribe';
 export * from './lib/email-config';
+export type {
+  BatchHtmlEmailItem,
+  EmailAttachment,
+  EmailChannel,
+  EmailProviderName,
+  SendEmailResult,
+  SendHtmlEmailParams,
+} from './lib/email-types';
 export * from './lib/invite-member';
 export * from './lib/magic-link';
 export * from './lib/policy-notification';

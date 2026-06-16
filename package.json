@@ -24,7 +24,7 @@
     "@types/lodash": "^4.17.24",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "ai": "^5.0.179",
+    "ai": "^6.0.175",
     "concurrently": "^9.2.1",
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
@@ -36,6 +36,7 @@
     "prettier": "^3.8.3",
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "railway": "^3.3.1",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-email": "^4.3.2",
@@ -89,6 +90,10 @@
     "!apps/mcp-server",
     "packages/*"
   ],
+  "overrides": {
+    "ai": "6.0.175",
+    "resend": "6.12.2"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1013.0",
     "@aws-sdk/s3-request-presigner": "3.1013.0",

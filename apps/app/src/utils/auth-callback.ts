@@ -14,8 +14,18 @@ export const isValidRedirectPath = (path?: string | null): path is string => {
     return false;
   }
 
-  // Only check the path portion (before query string) for protocol
   const pathWithoutQuery = path.split('?')[0];
+
+  // Ignore framework internals accidentally captured as redirectTo (e.g. Vercel Analytics)
+  if (
+    pathWithoutQuery.startsWith('/_vercel') ||
+    pathWithoutQuery.startsWith('/_next') ||
+    pathWithoutQuery.startsWith('/api/')
+  ) {
+    return false;
+  }
+
+  // Only check the path portion (before query string) for protocol
   return !pathWithoutQuery.includes('://');
 };
 

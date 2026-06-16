@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const queryString = searchParams ? `?${searchParams}` : '';
 
   if (!session?.user?.id) {
-    redirect(`/sign-in${queryString}`);
+    redirect(`/auth${queryString}`);
   }
 
   const setupSession = await createSetupSession(session.user.id);

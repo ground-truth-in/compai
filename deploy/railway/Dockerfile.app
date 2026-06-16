@@ -14,11 +14,15 @@ COPY packages/integrations/package.json ./packages/integrations/
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY packages/analytics/package.json ./packages/analytics/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/billing/package.json ./packages/billing/
+COPY packages/company/package.json ./packages/company/
+COPY packages/db/package.json ./packages/db/
 COPY apps/app/package.json ./apps/app/
 
 RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true bun install --ignore-scripts
 
-FROM deps AS app-builder
+FROM node:22-bookworm-slim AS app-builder
 
 WORKDIR /app
 
@@ -26,8 +30,10 @@ COPY packages ./packages
 COPY apps/app ./apps/app
 COPY --from=deps /app/node_modules ./node_modules
 
-RUN cd packages/db && node scripts/combine-schemas.js \
-                   && node scripts/generate-prisma-client-js.js
+RUN cd packages/db && npm run build \
+  && cd ../auth && npm run build \
+  && cd ../company && npm run build \
+  && cd ../billing && npm run build
 
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
 ARG NEXT_PUBLIC_PORTAL_URL
@@ -43,9 +49,12 @@ ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL \
     NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production \
     NEXT_OUTPUT_STANDALONE=true \
-    NODE_OPTIONS=--max_old_space_size=6144
+    NEXT_BUILD_SINGLE_CPU=1 \
+    SKIP_SENTRY_BUILD=true \
+    NODE_OPTIONS=--max-old-space-size=4096 \
+    PATH="/app/node_modules/.bin:${PATH}"
 
-RUN cd apps/app && SKIP_ENV_VALIDATION=true bun run build:docker
+RUN cd apps/app && SKIP_ENV_VALIDATION=true npm run build:docker
 
 FROM node:22-alpine
 

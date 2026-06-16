@@ -99,7 +99,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
           <Providers session={session}>{children}</Providers>
         </NuqsAdapter>
         <Toaster richColors />
-        <VercelAnalytics />
+        {process.env.VERCEL ? <VercelAnalytics /> : null}
       </body>
     </html>
   );

@@ -7,19 +7,24 @@ import {
 } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import { ac, allRoles } from './permissions';
+import { resolveAuthClientBaseUrl } from './auth-base-url';
 
 /**
  * Auth client for browser-side authentication.
  *
- * Points directly to the API server. Cross-subdomain cookies (.trycomp.ai)
- * ensure the session works across all apps (app, portal, etc.).
+ * On trycomp.ai, calls the API directly with cross-subdomain cookies.
+ * On self-hosted Railway (separate domains), set NEXT_PUBLIC_AUTH_VIA_APP_PROXY=1
+ * so auth is proxied through this app and cookies stay on the app origin.
  *
  * For server-side session validation, use auth.ts instead.
- *
- * SECURITY NOTE: Authentication is handled via httpOnly cookies set by the API.
- * We do not store tokens in localStorage to prevent XSS attacks.
  */
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333';
+const BASE_URL = resolveAuthClientBaseUrl({
+  authViaAppProxy: process.env.NEXT_PUBLIC_AUTH_VIA_APP_PROXY,
+  betterAuthUrl: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  windowOrigin:
+    typeof window !== 'undefined' ? window.location.origin : undefined,
+});
 
 export const authClient = createAuthClient({
   baseURL: BASE_URL,

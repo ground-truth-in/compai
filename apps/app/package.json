@@ -131,7 +131,7 @@
         "rehype-sanitize": "^6.0.0",
         "remark-gfm": "^4.0.1",
         "remark-parse": "^11.0.0",
-        "resend": "^4.4.1",
+        "resend": "^6.4.2",
         "shiki": "^4.0.1",
         "sonner": "^2.0.5",
         "streamdown": "^2.3.0",
@@ -192,7 +192,7 @@
     "scripts": {
         "analyze-locale-usage": "bunx tsx src/locales/analyze-locale-usage.ts",
         "build": "next build",
-        "build:docker": "prisma generate --schema=prisma/schema && node ../../packages/db/scripts/fix-generated-extensions.js src/generated/prisma && next build",
+        "build:docker": "npm run db:getschema && prisma generate --schema=prisma/schema && node ../../packages/db/scripts/fix-generated-extensions.js src/generated/prisma && next build --webpack",
         "db:generate": "bun run db:getschema && prisma generate --schema=prisma/schema && node ../../packages/db/scripts/fix-generated-extensions.js src/generated/prisma",
         "db:getschema": "find prisma/schema -name '*.prisma' ! -name 'schema.prisma' -delete && find ../../packages/db/prisma/schema -name '*.prisma' ! -name 'schema.prisma' -exec cp {} prisma/schema/ \\;",
         "db:migrate": "cd ../../packages/db && bunx prisma migrate dev && cd ../../apps/app",

@@ -6,7 +6,9 @@ import { integrationPlatformExtension } from './integrationPlatformExtension';
 
 export default defineConfig({
   runtime: 'node-22',
-  project: 'proj_zhioyrusqertqgafqgpj', // API project
+  // Self-hosters: create a project at cloud.trigger.dev, set TRIGGER_PROJECT_REF,
+  // and use that project's secret keys on Railway (not Comp AI's internal ref).
+  project: process.env.TRIGGER_PROJECT_REF ?? 'proj_zhioyrusqertqgafqgpj',
   logLevel: 'log',
   maxDuration: 300, // 5 minutes
   build: {

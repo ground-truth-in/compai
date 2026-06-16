@@ -3,7 +3,11 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "deploy/railway/Dockerfile.migrator",
-    "watchPatterns": ["packages/db/prisma/**", "deploy/railway/Dockerfile.migrator"]
+    "watchPatterns": [
+      ".dockerignore",
+      "packages/db/prisma/**",
+      "deploy/railway/Dockerfile.migrator"
+    ]
   },
   "deploy": {
     "restartPolicyType": "NEVER",

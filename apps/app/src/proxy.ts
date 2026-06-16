@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const config = {
   matcher: [
     // Skip auth-related routes and static assets
-    '/((?!api|_next/static|_next/image|favicon.ico|monitoring|ingest|research|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$|.*\\.webp$).*)',
+    '/((?!api|_next/static|_next/image|_vercel|favicon.ico|monitoring|ingest|research|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$|.*\\.webp$).*)',
   ],
 };
 
@@ -33,6 +33,7 @@ export async function proxy(request: NextRequest) {
       request.cookies.get('better-auth.session_token')?.value ||
       request.cookies.get('__Secure-staging.session_token')?.value ||
       request.cookies.get('staging.session_token')?.value ||
+      request.cookies.get('__Secure-local.session_token')?.value ||
       request.cookies.get('local.session_token')?.value;
     const hasToken = Boolean(sessionToken);
     const nextUrl = request.nextUrl;

@@ -3,7 +3,15 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "deploy/railway/Dockerfile.app",
-    "watchPatterns": ["apps/app/**", "packages/**", "deploy/railway/Dockerfile.app"]
+    "watchPatterns": [
+      "package.json",
+      "bun.lock",
+      ".dockerignore",
+      "Dockerfile",
+      "apps/app/**",
+      "packages/**",
+      "deploy/railway/Dockerfile.app"
+    ]
   },
   "deploy": {
     "healthcheckPath": "/api/health",

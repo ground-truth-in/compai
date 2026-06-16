@@ -54,13 +54,36 @@ class MockRedis {
 const isE2ETest = process.env.E2E_TEST_MODE === 'true' && process.env.CI === 'true';
 const isMockRequired = process.env.MOCK_REDIS === 'true';
 
-export const client =
-  isE2ETest || isMockRequired
-    ? (new MockRedis() as any as Redis)
-    : new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      });
+function hasUpstashConfig(): boolean {
+  return Boolean(
+    process.env.UPSTASH_REDIS_REST_URL?.trim() &&
+      process.env.UPSTASH_REDIS_REST_TOKEN?.trim(),
+  );
+}
+
+function createKvClient(): Redis {
+  if (isE2ETest || isMockRequired || !hasUpstashConfig()) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !isE2ETest &&
+      !isMockRequired &&
+      !hasUpstashConfig()
+    ) {
+      console.warn(
+        '[@trycompai/kv] UPSTASH_REDIS_REST_URL/TOKEN not set — using in-memory Redis. ' +
+          'Setup sessions and rate limits reset on restart. Add Upstash for production.',
+      );
+    }
+    return new MockRedis() as unknown as Redis;
+  }
+
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
+}
+
+export const client = createKvClient();
 
 // Re-export Redis types for convenience
 export type { Redis } from '@upstash/redis';
