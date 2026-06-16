@@ -42,23 +42,6 @@ function getCookieDomain(): string | undefined {
 }
 
 /**
- * When the app proxies `/api/auth/*` (Railway / split domains), magic-link emails
- * must point at the app origin so Set-Cookie lands on the app domain.
- */
-function rewriteAuthUrlForPublicApp(apiAuthUrl: string): string {
-  const publicBase = (
-    process.env.AUTH_PUBLIC_BASE_URL ||
-    process.env.BETTER_AUTH_URL ||
-    ''
-  ).replace(/\/$/, '');
-  const apiBase = (process.env.BASE_URL || '').replace(/\/$/, '');
-  if (!publicBase || !apiBase || publicBase === apiBase) {
-    return apiAuthUrl;
-  }
-  return apiAuthUrl.replace(apiBase, publicBase);
-}
-
-/**
  * Get trusted origins for CORS/auth
  */
 export function getTrustedOrigins(): string[] {
@@ -512,18 +495,14 @@ export const auth = betterAuth({
     magicLink({
       expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
       sendMagicLink: async ({ email, url }) => {
-        const publicUrl = rewriteAuthUrlForPublicApp(url);
-        // The `url` from better-auth points to the API verify endpoint.
-        // When AUTH_PUBLIC_BASE_URL / BETTER_AUTH_URL is the app, rewrite so
-        // verify runs via the app proxy and cookies land on the app origin.
         if (process.env.NODE_ENV === 'development') {
           console.log('[Auth] Sending magic link to:', email);
-          console.log('[Auth] Magic link URL:', publicUrl);
+          console.log('[Auth] Magic link URL:', url);
         }
         await triggerEmail({
           to: email,
           subject: 'Login to Comp AI',
-          react: MagicLinkEmail({ email, url: publicUrl }),
+          react: MagicLinkEmail({ email, url }),
         });
       },
     }),

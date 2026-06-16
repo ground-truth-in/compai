@@ -160,7 +160,6 @@ Wire cross-service URLs (use Railway reference variables in the Variables tab):
 NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_BETTER_AUTH_URL=https://${{App.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_PORTAL_URL=https://${{Portal.RAILWAY_PUBLIC_DOMAIN}}
-NEXT_PUBLIC_AUTH_VIA_APP_PROXY=1
 BETTER_AUTH_URL=https://${{App.RAILWAY_PUBLIC_DOMAIN}}
 
 # Portal
@@ -308,7 +307,7 @@ Templates are no longer submitted via the [railwayapp/templates](https://github.
 - **Root directory**: Leave **Root Directory** empty (repo root) for every service — not `apps/app` or `apps/portal`.
 - **`bun.lock` must not be in `.gitignore`**: `railway up` respects `.gitignore` and will omit ignored files from the upload. If Docker fails with `"/bun.lock": not found`, remove `bun.lock` from `.gitignore` (do not rely on `railway up --no-gitignore` long-term).
 - **OAuth**: Register redirect URIs against the **API** domain: `https://<api-domain>/api/auth/callback/google` (and Microsoft/GitHub equivalents).
-- **Auth cookies on Railway**: Default `*.up.railway.app` domains cannot share cookies. Set `NEXT_PUBLIC_AUTH_VIA_APP_PROXY=1` on App (done by `set-variables.sh`) so `/api/auth/*` is proxied through the app and magic-link emails use `BETTER_AUTH_URL`. For production, prefer custom domains (`app.example.com` + `api.example.com`) with `AUTH_COOKIE_DOMAIN=.example.com` on the API.
+- **Auth cookies on Railway**: Default `*.up.railway.app` domains cannot share session cookies across services. Use **custom domains** on a shared parent (e.g. `app.example.com`, `api.example.com`) and set `AUTH_COOKIE_DOMAIN=.example.com` on the API. Run `./deploy/railway/setup-custom-domains.sh` (or set vars manually) — see script for GoDaddy/Railway DNS steps.
 
 ## Files in this directory
 
@@ -317,6 +316,7 @@ deploy/railway/
 ├── Dockerfile.app        # Next.js app (standalone)
 ├── Dockerfile.portal     # Next.js portal (standalone)
 ├── Dockerfile.migrator   # Prisma migrate deploy (one-shot)
+├── setup-custom-domains.sh  # Custom domain + AUTH_COOKIE_DOMAIN wiring
 ├── api.railway.json      # API service config
 ├── app.railway.json      # App service config
 ├── portal.railway.json   # Portal service config
